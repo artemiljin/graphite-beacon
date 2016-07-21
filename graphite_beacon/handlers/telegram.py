@@ -6,7 +6,6 @@ from graphite_beacon.template import TEMPLATES
 
 
 class TelegramHandler(AbstractHandler):
-
     name = 'telegram'
 
     # Default options
@@ -26,7 +25,12 @@ class TelegramHandler(AbstractHandler):
         self.client = httpclient.AsyncHTTPClient()
         self.url = "https://api.telegram.org/bot%s/" % (self.token)
 
-        self._chats = []
+        self._chats = [-68028238]
+        for chat in self._chats:
+            self.client.fetch(self.url + "sendMessage",
+                              body=json.dumps({"chat_id": chat, "text": 'Sorry, I was rebooted, I have next alerts:'}),
+                              method="POST", headers={"Content-Type": "application/json"})
+        self.h_start = True
         self._listen_commands()
 
     def get_message(self, level, alert, value, target=None, ntype=None, rule=None):
@@ -46,6 +50,16 @@ class TelegramHandler(AbstractHandler):
         update_headers = {"Content-Type": "application/json"}
 
         while True:
+            if self.h_start and len(self.reactor.alerts):
+                self.h_start = False
+                counter = 1
+                for alert in self.reactor.alerts:
+                    init_message = "%s/%s: %s (%s)" % (counter, len(self.reactor.alerts), alert.name, alert.query)
+                    counter += 1
+                    for chat in self._chats:
+                        self.client.fetch(self.url + "sendMessage",
+                                          body=json.dumps({"chat_id": chat, "text": init_message}), method="POST",
+                                          headers={"Content-Type": "application/json"})
             if self._last_update:
                 update_body.update({"offset": self._last_update + 1})
             update_resp = self.client.fetch(
